@@ -15,38 +15,47 @@
  */
 package org.pf4j.spring;
 
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.pf4j.Plugin;
 import org.pf4j.PluginWrapper;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
-/**
- * @author Decebal Suiu
- */
 public abstract class SpringPlugin extends Plugin {
 
-    private ApplicationContext applicationContext;
+    private AnnotationConfigApplicationContext applicationContext;
 
     public SpringPlugin(PluginWrapper wrapper) {
         super(wrapper);
     }
 
-    public final ApplicationContext getApplicationContext() {
-        if (applicationContext == null) {
-            applicationContext = createApplicationContext();
+    @Override
+    public void start() {
+        applicationContext = new AnnotationConfigApplicationContext();
+        applicationContext.scan(this.getClass().getPackage().getName());
+        applicationContext.setClassLoader(getWrapper().getPluginClassLoader());
+
+        if (getWrapper().getPluginManager() instanceof SpringPluginManager) {
+            SpringPluginManager pluginManager = (SpringPluginManager) getWrapper().getPluginManager();
+
+            applicationContext.setParent(pluginManager.getApplicationContext());
+            applicationContext.registerBean(SpringPlugin.class, () -> this);
         }
 
-        return applicationContext;
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(this.getClass().getClassLoader());
+            applicationContext.refresh();
+        } catch (Exception | LinkageError e) {
+
+        }
+        Thread.currentThread().setContextClassLoader(cl);
     }
 
     @Override
     public void stop() {
-        // close applicationContext
-        if ((applicationContext != null) && (applicationContext instanceof ConfigurableApplicationContext)) {
-            ((ConfigurableApplicationContext) applicationContext).close();
-        }
+        if (applicationContext != null) applicationContext.close();
     }
 
-    protected abstract ApplicationContext createApplicationContext();
-
+    public AnnotationConfigApplicationContext getApplicationContext() {
+        return applicationContext;
+    }
 }

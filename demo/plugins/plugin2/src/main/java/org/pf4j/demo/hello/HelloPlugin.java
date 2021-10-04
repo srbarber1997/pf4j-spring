@@ -37,22 +37,13 @@ public class HelloPlugin extends SpringPlugin {
     @Override
     public void start() {
         System.out.println("HelloPlugin.start()");
+        super.start();
     }
 
     @Override
     public void stop() {
         System.out.println("HelloPlugin.stop()");
         super.stop(); // to close applicationContext
-    }
-
-    @Override
-    protected ApplicationContext createApplicationContext() {
-        AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext();
-        applicationContext.setClassLoader(getWrapper().getPluginClassLoader());
-        applicationContext.register(SpringConfiguration.class);
-        applicationContext.refresh();
-
-        return applicationContext;
     }
 
     @Extension(ordinal=1)

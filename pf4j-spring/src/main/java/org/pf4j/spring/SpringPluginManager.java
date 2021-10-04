@@ -17,26 +17,49 @@ package org.pf4j.spring;
 
 import org.pf4j.DefaultPluginManager;
 import org.pf4j.ExtensionFactory;
+import org.pf4j.spring.event.PluginsStartedEvent;
+import org.pf4j.spring.event.PluginsStoppedEvent;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
-import javax.annotation.PostConstruct;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-/**
- * @author Decebal Suiu
- */
-public class SpringPluginManager extends DefaultPluginManager implements ApplicationContextAware {
+public class SpringPluginManager extends DefaultPluginManager
+    implements InitializingBean, DisposableBean, ApplicationContextAware {
 
-    private ApplicationContext applicationContext;
+    protected ApplicationContext applicationContext;
+
+    private String pluginContextPath = "/plugin-api";
 
     public SpringPluginManager() {
     }
 
-    public SpringPluginManager(Path pluginsRoot) {
+    public SpringPluginManager(Path... pluginsRoot) {
         super(pluginsRoot);
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        loadPlugins();
+        startPlugins();
+        applicationContext.publishEvent(new PluginsStartedEvent(this));
+    }
+
+    @Override
+    public void destroy() {
+        stopPlugins();
+        applicationContext.publishEvent(new PluginsStoppedEvent(this));
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -45,25 +68,21 @@ public class SpringPluginManager extends DefaultPluginManager implements Applica
     }
 
     @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        this.applicationContext = applicationContext;
+    public <T> List<T> getExtensions(Class<T> type) {
+        return super.getExtensions(type).stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     public ApplicationContext getApplicationContext() {
         return applicationContext;
     }
 
-    /**
-     * This method load, start plugins and inject extensions in Spring
-     */
-    @PostConstruct
-    public void init() {
-        loadPlugins();
-        startPlugins();
-
-        AbstractAutowireCapableBeanFactory beanFactory = (AbstractAutowireCapableBeanFactory) applicationContext.getAutowireCapableBeanFactory();
-        ExtensionsInjector extensionsInjector = new ExtensionsInjector(this, beanFactory);
-        extensionsInjector.injectExtensions();
+    public String getPluginContextPath() {
+        return pluginContextPath;
     }
 
+    public void setPluginContextPath(String pluginContextPath) {
+        this.pluginContextPath = pluginContextPath;
+    }
 }
